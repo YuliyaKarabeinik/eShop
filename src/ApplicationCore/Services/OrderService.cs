@@ -13,16 +13,22 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
     {
         private readonly IAsyncRepository<Order> _orderRepository;
         private readonly IUriComposer _uriComposer;
+        private readonly IServiceBusService _serviceBusService;
+        private readonly IOrdersSenderService _ordersSenderService;
         private readonly IAsyncRepository<Basket> _basketRepository;
         private readonly IAsyncRepository<CatalogItem> _itemRepository;
 
         public OrderService(IAsyncRepository<Basket> basketRepository,
             IAsyncRepository<CatalogItem> itemRepository,
             IAsyncRepository<Order> orderRepository,
-            IUriComposer uriComposer)
+            IUriComposer uriComposer,
+            IServiceBusService serviceBusService,
+            IOrdersSenderService ordersSenderService)
         {
             _orderRepository = orderRepository;
             _uriComposer = uriComposer;
+            _serviceBusService = serviceBusService;
+            _ordersSenderService = ordersSenderService;
             _basketRepository = basketRepository;
             _itemRepository = itemRepository;
         }
@@ -49,6 +55,23 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
             var order = new Order(basket.BuyerId, shippingAddress, items);
 
             await _orderRepository.AddAsync(order);
+
+            var reservedItems = order.OrderItems.Select(x => new ReservedOrder
+            {
+                Id = x.ItemOrdered.CatalogItemId,
+                Quantity = x.Units
+            }).ToArray();
+
+            await _serviceBusService.ReserveOrder(reservedItems);
+
+            decimal totalPrice = 0;
+            foreach (var item in order.OrderItems)
+            {
+                totalPrice += (item.Units * item.UnitPrice);
+            }
+
+            var orderModel = new OrderDetails(basketId, order.OrderItems, order.ShipToAddress, totalPrice);
+            await _ordersSenderService.SendForDelivery(orderModel);
         }
     }
 }

@@ -38,10 +38,10 @@ namespace Microsoft.eShopWeb.PublicApi
         public void ConfigureDevelopmentServices(IServiceCollection services)
         {
             // use in-memory database
-            ConfigureInMemoryDatabases(services);
+            //ConfigureInMemoryDatabases(services);
 
             // use real database
-            //ConfigureProductionServices(services);
+            ConfigureProductionServices(services);
         }
 
         public void ConfigureDockerServices(IServiceCollection services)
@@ -65,12 +65,13 @@ namespace Microsoft.eShopWeb.PublicApi
             // use real database
             // Requires LocalDB which can be installed with SQL Server Express 2016
             // https://www.microsoft.com/en-us/download/details.aspx?id=54284
-            services.AddDbContext<CatalogContext>(c =>
-                c.UseSqlServer(Configuration.GetConnectionString("CatalogConnection")));
+            var catalogConnection = Configuration["CatalogConnection"];
+            var identityConnection = Configuration["IdentityConnection"];
+
+            services.AddDbContext<CatalogContext>(c => c.UseSqlServer(catalogConnection));
 
             // Add Identity DbContext
-            services.AddDbContext<AppIdentityDbContext>(options =>
-                options.UseSqlServer(Configuration.GetConnectionString("IdentityConnection")));
+            services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlServer(identityConnection));
 
             ConfigureServices(services);
         }
@@ -122,7 +123,7 @@ namespace Microsoft.eShopWeb.PublicApi
                 options.AddPolicy(name: CORS_POLICY,
                                   builder =>
                                   {
-                                      builder.WithOrigins(baseUrlConfig.WebBase.Replace("host.docker.internal", "localhost").TrimEnd('/'));
+                                      builder.AllowAnyOrigin();
                                       builder.AllowAnyMethod();
                                       builder.AllowAnyHeader();
                                   });
