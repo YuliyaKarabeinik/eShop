@@ -63,15 +63,9 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
             }).ToArray();
 
             await _serviceBusService.ReserveOrder(reservedItems);
-
-            decimal totalPrice = 0;
-            foreach (var item in order.OrderItems)
-            {
-                totalPrice += (item.Units * item.UnitPrice);
-            }
-
-            var orderModel = new OrderDetails(basketId, order.OrderItems, order.ShipToAddress, totalPrice);
-            await _ordersSenderService.SendForDelivery(orderModel);
+            
+            var orderDetails = new OrderDetails(basketId, order.OrderItems, order.ShipToAddress);
+            await _ordersSenderService.SendForDelivery(orderDetails);
         }
     }
 }
