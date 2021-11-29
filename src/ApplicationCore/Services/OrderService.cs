@@ -13,16 +13,22 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
     {
         private readonly IAsyncRepository<Order> _orderRepository;
         private readonly IUriComposer _uriComposer;
+        private readonly IServiceBusService _serviceBusService;
+        private readonly IOrdersSenderService _ordersSenderService;
         private readonly IAsyncRepository<Basket> _basketRepository;
         private readonly IAsyncRepository<CatalogItem> _itemRepository;
 
         public OrderService(IAsyncRepository<Basket> basketRepository,
             IAsyncRepository<CatalogItem> itemRepository,
             IAsyncRepository<Order> orderRepository,
-            IUriComposer uriComposer)
+            IUriComposer uriComposer,
+            IServiceBusService serviceBusService,
+            IOrdersSenderService ordersSenderService)
         {
             _orderRepository = orderRepository;
             _uriComposer = uriComposer;
+            _serviceBusService = serviceBusService;
+            _ordersSenderService = ordersSenderService;
             _basketRepository = basketRepository;
             _itemRepository = itemRepository;
         }
@@ -49,6 +55,17 @@ namespace Microsoft.eShopWeb.ApplicationCore.Services
             var order = new Order(basket.BuyerId, shippingAddress, items);
 
             await _orderRepository.AddAsync(order);
+
+            var reservedItems = order.OrderItems.Select(x => new ReservedOrder
+            {
+                Id = x.ItemOrdered.CatalogItemId,
+                Quantity = x.Units
+            }).ToArray();
+
+            await _serviceBusService.ReserveOrder(reservedItems);
+            
+            var orderDetails = new OrderDetails(basketId, order.OrderItems, order.ShipToAddress);
+            await _ordersSenderService.SendForDelivery(orderDetails);
         }
     }
 }

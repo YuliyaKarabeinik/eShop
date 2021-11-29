@@ -26,6 +26,8 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Mime;
+using Microsoft.eShopWeb.ApplicationCore;
+using Microsoft.eShopWeb.ApplicationCore.Services;
 
 namespace Microsoft.eShopWeb.Web
 {
@@ -76,12 +78,13 @@ namespace Microsoft.eShopWeb.Web
             // use real database
             // Requires LocalDB which can be installed with SQL Server Express 2016
             // https://www.microsoft.com/en-us/download/details.aspx?id=54284
-            services.AddDbContext<CatalogContext>(c =>
-                c.UseSqlServer(Configuration.GetConnectionString("CatalogConnection")));
+            var catalogConnection = Configuration["CatalogConnection"];
+            var identityConnection = Configuration["IdentityConnection"];
+
+            services.AddDbContext<CatalogContext>(c => c.UseSqlServer(catalogConnection));
 
             // Add Identity DbContext
-            services.AddDbContext<AppIdentityDbContext>(options =>
-                options.UseSqlServer(Configuration.GetConnectionString("IdentityConnection")));
+            services.AddDbContext<AppIdentityDbContext>(options => options.UseSqlServer(identityConnection));
 
             ConfigureServices(services);
         }
@@ -97,6 +100,12 @@ namespace Microsoft.eShopWeb.Web
         {
             services.AddCookieSettings();
 
+            services.AddScoped<IServiceBusService, ServiceBusService>();
+            services.AddScoped<IOrdersSenderService, OrdersSenderService>();
+            services.AddHttpClient();
+
+            services.Configure<ServiceBusSettings>(Configuration.GetSection(nameof(ServiceBusSettings)));
+            services.Configure<OrderSenderSettings>(Configuration.GetSection(nameof(OrderSenderSettings)));
 
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
                 .AddCookie(options =>
